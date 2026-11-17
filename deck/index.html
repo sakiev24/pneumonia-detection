@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pneumonia CNN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --box: #e7eff2;
+  --box-hi: #f6fafb;
+  --film: #14222b;
+  --film-2: #213443;
+  --bone: #d4e0e5;
+  --ink: #15242d;
+  --muted: #4c616d;
+  --marker: #cc3226;
+  --tape: #e9dba9;
+  --steel: #3c6e89;
+  --steel-lt: #9ebfcf;
+  --rust: #b0482a;
+  --hand: "Kalam", "Segoe Print", cursive;
+  --sans: "Archivo", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: #0d171d;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-variation-settings: "wdth" 100;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--marker); outline-offset: 3px; }
+
+/* ---------- stage ---------- */
+.viewport { position: fixed; inset: 0; display: grid; place-items: center; }
+.stage {
+  position: relative;
+  width: 1280px; height: 720px;
+  transform-origin: center center;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 150px, rgba(255,255,255,.55) 210px, rgba(255,255,255,0) 270px 320px),
+    linear-gradient(180deg, var(--box-hi), var(--box) 70%, #dbe6ea);
+  box-shadow: 0 0 0 10px #26343c, 0 0 0 12px #3a4a53, 0 30px 80px rgba(0,0,0,.6);
+}
+.stage.flicker { animation: flicker .55s steps(1) 1; }
+@keyframes flicker {
+  0% { filter: brightness(.55); } 12% { filter: brightness(1.05); } 20% { filter: brightness(.7); }
+  32% { filter: brightness(1); } 40% { filter: brightness(.88); } 52%, 100% { filter: brightness(1); }
+}
+
+.slide {
+  position: absolute; inset: 0 0 62px 0;
+  padding: 44px 60px 20px;
+  visibility: hidden; opacity: 0;
+  transition: opacity .35s ease, visibility 0s linear .35s;
+}
+.slide.on { visibility: visible; opacity: 1; transition: opacity .35s ease; }
+
+/* films clip onto the lightbox when the slide arrives */
+.slide.on .clip { animation: clipin .7s cubic-bezier(.2,.9,.25,1.15) both; animation-delay: calc(var(--i, 0) * 110ms + 150ms); }
+@keyframes clipin {
+  from { opacity: 0; transform: translateY(-46px) rotate(calc(var(--tilt, 0deg) - 2deg)); }
+  to { opacity: 1; transform: translateY(0) rotate(var(--tilt, 0deg)); }
+}
+.clip { transform: rotate(var(--tilt, 0deg)); }
+
+h1, h2 {
+  font-variation-settings: "wdth" 122;
+  font-weight: 820;
+  letter-spacing: -.01em;
+  line-height: 1;
+}
+h2 { font-size: 44px; max-width: 1160px; }
+h1 { font-size: 70px; }
+.lede { font-size: 20px; line-height: 1.45; color: var(--muted); max-width: 60ch; margin-top: 14px; }
+p { font-size: 17px; line-height: 1.5; }
+strong { font-weight: 700; }
+
+.film {
+  position: relative;
+  background: radial-gradient(120% 90% at 50% 40%, var(--film-2), var(--film));
+  color: var(--bone);
+  border-radius: 5px;
+  padding: 14px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 10px 24px rgba(20,34,43,.28);
+}
+.film::before { /* masking tape */
+  content: ""; position: absolute; top: -11px; left: 50%;
+  width: 74px; height: 22px; margin-left: -37px;
+  background: var(--tape); opacity: .9;
+  transform: rotate(var(--tape, -3deg));
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  clip-path: polygon(3% 0, 97% 4%, 100% 100%, 0 94%);
+}
+.film.notape::before { display: none; }
+.film img { display: block; width: 100%; border-radius: 2px; }
+.lead { /* radiology L/R lead marker */
+  position: absolute; top: 18px; right: 18px;
+  font-weight: 800; font-size: 15px; color: #f3f7f8;
+  border: 2px solid #f3f7f8; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 3px; opacity: .85;
+}
+.hand { font-family: var(--hand); color: var(--marker); font-size: 22px; line-height: 1.15; }
+.hand.ink { color: var(--ink); }
+
+/* ---------- bottom bar ---------- */
+.bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 62px;
+  display: flex; align-items: center; gap: 18px; padding: 0 24px 0 60px;
+  background: #1c2a32; color: #b8c8cf; font-size: 14px;
+}
+.bar .tasks { display: flex; gap: 6px; flex: 1; align-items: center; }
+.bar .tasks span.lbl { margin-right: 8px; color: #7d929c; }
+.task {
+  padding: 5px 10px; border-radius: 3px; color: #7d929c;
+  border: 1px solid #33444d; transition: background .3s, color .3s, border-color .3s;
+}
+.task.lit { background: var(--bone); color: var(--film); border-color: var(--bone); font-weight: 700; }
+.count { font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+.nav { width: 38px; height: 38px; border-radius: 50%; background: #2a3b45; border: 0; font-size: 18px; }
+.nav:hover { background: #3a4e5a; }
+.progress { position: absolute; left: 0; bottom: 62px; height: 3px; background: var(--marker); transition: width .5s ease; }
+
+/* ---------- 1 title ---------- */
+.s-title { display: grid; grid-template-columns: 1fr 430px; gap: 50px; align-items: center; padding-top: 30px; }
+.s-title h1 span { display: block; }
+.s-title .meta { margin-top: 34px; font-size: 17px; line-height: 1.7; color: var(--muted); }
+.s-title .meta b { color: var(--ink); font-weight: 650; }
+.s-title .names { font-family: var(--hand); font-size: 24px; color: var(--ink); border-bottom: 2px dashed #9fb1b9; display: inline-block; min-width: 320px; padding: 0 4px; }
+.s-title .film { --tilt: 2deg; padding: 16px; }
+.xray-wrap { position: relative; }
+.xray-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.circle { fill: none; stroke: var(--marker); stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 700; stroke-dashoffset: 700; }
+.slide.on .circle { animation: draw 1.4s ease-out 1s forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.s-title .q { position: absolute; left: -150px; bottom: 70px; transform: rotate(-6deg); opacity: 0; }
+.slide.on .s-title .q { animation: fadein .5s ease 2.2s forwards; }
+@keyframes fadein { to { opacity: 1; } }
+
+/* ---------- 2 problem ---------- */
+.s-problem { display: grid; grid-template-columns: 560px 1fr; gap: 54px; margin-top: 34px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.pair figure { position: relative; }
+.pair figcaption { margin-top: 12px; text-align: center; }
+.reasons { display: grid; gap: 22px; align-content: start; }
+.reasons h3 { font-size: 21px; font-variation-settings: "wdth" 112; font-weight: 750; margin-bottom: 4px; }
+.reasons p { color: #2c3f4a; }
+.reasons .hl { background: linear-gradient(transparent 60%, rgba(204,50,38,.22) 60%); }
+
+/* ---------- 3 dataset ---------- */
+.s-data { display: grid; grid-template-columns: 1fr 420px; gap: 46px; margin-top: 26px; }
+.splitbar { display: flex; gap: 6px; margin-top: 10px; align-items: flex-end; }
+.seg { min-width: 0; }
+.seg label { display: block; color: var(--ink); font-weight: 750; font-size: 16px; font-variation-settings: "wdth" 110; margin-bottom: 6px; white-space: nowrap; }
+.seg label small { display: block; margin-top: 1px; font-weight: 500; font-size: 13px; color: var(--muted); }
+.seg .bars { display: flex; flex-direction: column; height: 84px; border-radius: 4px; overflow: hidden; clip-path: inset(0 100% 0 0); transition: clip-path 1s cubic-bezier(.3,.8,.2,1); }
+.seg.in .bars { clip-path: inset(0 0 0 0); }
+.seg .n, .seg .p { flex: 1; }
+.seg .n { background: var(--steel-lt); }
+.seg .p { background: var(--steel); }
+.legend { display: flex; gap: 20px; margin-top: 10px; font-size: 14px; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.facts { margin-top: 26px; display: grid; gap: 12px; }
+.facts p { padding-left: 16px; border-left: 3px solid var(--steel-lt); }
+.gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.gallery .film { padding: 6px; }
+.gallery .film::before { width: 34px; height: 12px; margin-left: -17px; top: -6px; }
+.gallery .row-lbl { grid-column: 1 / -1; margin-top: 4px; }
+.s-data .note { margin-top: 18px; transform: rotate(-2deg); max-width: 380px; }
+
+/* ---------- 4 preprocess ---------- */
+.s-prep { display: grid; grid-template-columns: 1fr 520px; gap: 50px; margin-top: 30px; }
+.steps { list-style: none; counter-reset: s; display: grid; gap: 16px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; }
+.steps li::before {
+  content: counter(s); font-family: var(--hand); font-size: 28px; color: var(--marker);
+  border: 2px solid var(--marker); border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; line-height: 1;
+}
+.steps h3 { font-size: 19px; font-weight: 740; font-variation-settings: "wdth" 110; }
+.steps p { font-size: 16px; color: #2c3f4a; }
+.augbox { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+.aug-frame { overflow: hidden; border-radius: 2px; aspect-ratio: 1; background: #000; }
+.aug-frame img { animation: jitter 6s steps(1) infinite; }
+@keyframes jitter {
+  0% { transform: none; }
+  16% { transform: rotate(7deg) translate(3%, -2%) scale(1.04); }
+  33% { transform: rotate(-9deg) translate(-4%, 3%) scale(.96); }
+  50% { transform: rotate(3deg) translate(5%, 4%) scale(1.02); }
+  66% { transform: rotate(-4deg) translate(-2%, -5%) scale(1.05); }
+  83% { transform: rotate(10deg) translate(1%, 2%) scale(.95); }
+}
+.aug-frame img { transition: transform .4s; }
+.flip { position: relative; }
+.flip img { transform: scaleX(-1); opacity: .7; }
+.flip svg { position: absolute; inset: 14px; width: calc(100% - 28px); height: calc(100% - 28px); }
+.flip line { stroke: var(--marker); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 300; stroke-dashoffset: 300; }
+.slide.on .flip line { animation: draw .5s ease-out 1.1s forwards; }
+.slide.on .flip line + line { animation-delay: 1.4s; }
+.cap { margin-top: 10px; text-align: center; }
+.balance { margin-top: 26px; background: rgba(255,255,255,.55); padding: 14px 18px; border-radius: 4px; font-size: 16px; line-height: 1.5; }
+
+/* ---------- 5 structure ---------- */
+.pipeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin-top: 22px; position: relative; }
+.stage-btn {
+  position: relative; text-align: left; background: rgba(255,255,255,.6); border: 1.5px solid #b9cad1;
+  padding: 10px 14px 10px 46px; margin-right: 18px; border-radius: 4px; min-height: 58px;
+  font-weight: 700; font-size: 16px; font-variation-settings: "wdth" 108; transition: background .25s, border-color .25s, color .25s;
+}
+.stage-btn::before { content: attr(data-n); position: absolute; left: 14px; top: 9px; font-family: var(--hand); font-size: 26px; color: var(--marker); line-height: 1; }
+.stage-btn::after { content: ""; position: absolute; right: -15px; top: 50%; border: 6px solid transparent; border-left: 9px solid #9fb2ba; transform: translateY(-50%); }
+.stage-btn:last-child::after { display: none; }
+.stage-btn small { display: block; font-weight: 450; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.stage-btn[aria-pressed="true"] { background: var(--film); color: var(--bone); border-color: var(--film); }
+.stage-btn[aria-pressed="true"] small { color: #9fb2ba; }
+.arch-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 24px; margin-top: 28px; }
+.arch { position: relative; height: 300px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.arch .film-bg { position: absolute; inset: 0; }
+.comp { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: none; border: 0; padding: 0 2px; color: var(--bone); }
+.comp .slab { border-radius: 2px; transition: transform .25s, box-shadow .25s; }
+.comp .name { margin-top: 14px; font-size: 12.5px; font-weight: 700; font-variation-settings: "wdth" 95; white-space: nowrap; }
+.comp .shape { font-size: 11px; color: #8ea4ae; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.comp:hover .slab, .comp[aria-pressed="true"] .slab { transform: translateY(-6px); }
+.comp[aria-pressed="true"] .name { color: #fff; }
+.comp[aria-pressed="true"]::after { content: ""; position: absolute; bottom: 8px; width: 26px; height: 3px; background: var(--marker); border-radius: 2px; }
+.slab.conv { background: var(--steel); box-shadow: 4px -4px 0 #5287a3, 8px -8px 0 #6d9db6; }
+.slab.pool { background: var(--steel-lt); box-shadow: 3px -3px 0 #b7d1dd; }
+.slab.vec { background: #e4ecef; }
+.slab.out { background: var(--marker); }
+.slab.input { background-size: cover; outline: 1px solid #8ea4ae; }
+.pulse { position: absolute; z-index: 2; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: #fff; box-shadow: 0 0 12px 4px rgba(255,255,255,.7); left: 0; opacity: 0; pointer-events: none; }
+.slide.on .pulse { animation: flow 4.5s linear 1.2s infinite; }
+@keyframes flow { 0% { left: 3%; opacity: 0; } 6% { opacity: 1; } 92% { opacity: 1; } 100% { left: 96%; opacity: 0; } }
+.info { background: #fff; border-radius: 4px; padding: 18px 20px; box-shadow: 0 6px 18px rgba(20,34,43,.12); align-self: stretch; }
+.info h3 { font-size: 22px; font-weight: 800; font-variation-settings: "wdth" 115; }
+.info .sub { color: var(--muted); font-size: 14px; margin: 4px 0 12px; font-variant-numeric: tabular-nums; }
+.info p { font-size: 15.5px; color: #2c3f4a; }
+.info.swap { animation: swap .3s ease; }
+@keyframes swap { from { opacity: .2; transform: translateX(8px); } }
+.arch-hint { margin-top: 8px; font-size: 19px; }
+
+/* ---------- 6 model ---------- */
+.s-model { display: grid; grid-template-columns: 540px 1fr; gap: 50px; margin-top: 28px; }
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 650; color: var(--muted); font-size: 13.5px; padding: 6px 10px; border-bottom: 2px solid var(--ink); }
+td { padding: 8px 10px; border-bottom: 1px solid #c6d4da; }
+td.r, th.r { text-align: right; }
+td small { color: var(--muted); }
+tfoot td { font-weight: 800; border-bottom: 0; border-top: 2px solid var(--ink); }
+.pbars { display: grid; gap: 9px; margin-top: 14px; }
+.pbar { display: grid; grid-template-columns: 110px 1fr 70px; gap: 12px; align-items: center; font-size: 14.5px; }
+.pbar .track { height: 22px; background: rgba(255,255,255,.6); border-radius: 3px; overflow: hidden; }
+.pbar .fill { height: 100%; width: 0; background: var(--steel); border-radius: 3px; transition: width 1.1s cubic-bezier(.3,.8,.2,1); }
+.pbar.big .fill { background: var(--film); }
+.pbar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.s-model .note { margin-top: 22px; transform: rotate(-1.5deg); }
+
+/* ---------- 7 training ---------- */
+.s-train { display: grid; grid-template-columns: 330px 1fr; gap: 40px; margin-top: 26px; }
+.recipe { display: grid; gap: 0; }
+.recipe div { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #c6d4da; font-size: 16px; }
+.recipe div span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
+.recipe-note { margin-top: 18px; font-size: 15.5px; line-height: 1.5; color: #2c3f4a; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.charts .film { padding: 16px 16px 10px; }
+.charts h3 { font-size: 15px; font-weight: 700; color: var(--bone); margin-bottom: 4px; font-variation-settings: "wdth" 110; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .grid line { stroke: #2f4655; }
+.chart .ax text { fill: #8ea4ae; font-size: 11px; font-family: var(--sans); }
+.chart .line { fill: none; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.chart .train { stroke: var(--steel-lt); }
+.chart .val { stroke: #f0a37d; }
+.chart .lbl { font-size: 12px; font-weight: 700; font-family: var(--sans); }
+.chart .best { fill: none; stroke: #ff6a5c; stroke-width: 2.2; }
+.chart-note { margin-top: 14px; font-size: 15.5px; color: #2c3f4a; line-height: 1.5; }
+
+/* ---------- 8 results ---------- */
+.s-results { display: grid; grid-template-columns: 500px 1fr; gap: 56px; margin-top: 26px; }
+.cm { display: grid; grid-template-columns: 90px 1fr 1fr; grid-template-rows: 34px 1fr 1fr; gap: 10px; height: 380px; position: relative; }
+.cm .h { display: flex; align-items: end; justify-content: center; font-size: 14px; color: var(--muted); font-weight: 600; }
+.cm .v { display: flex; align-items: center; justify-content: end; padding-right: 6px; font-size: 14px; color: var(--muted); font-weight: 600; text-align: right; }
+.cell { border-radius: 4px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--bone); padding: 10px; }
+.cell b { font-size: 46px; font-weight: 800; font-variation-settings: "wdth" 115; font-variant-numeric: tabular-nums; }
+.cell span { font-size: 13.5px; opacity: .85; }
+.cm-axis { position: absolute; font-size: 13px; color: var(--muted); }
+.metric-list { display: grid; gap: 18px; }
+.metric { display: grid; grid-template-columns: 200px 1fr 70px; gap: 14px; align-items: center; }
+.metric .name { font-size: 16px; font-weight: 650; }
+.metric .name small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+.metric .track { height: 16px; border-radius: 3px; background: rgba(255,255,255,.65); overflow: hidden; }
+.metric .fill { height: 100%; width: 0; background: var(--steel); transition: width 1.2s cubic-bezier(.3,.8,.2,1); }
+.metric.key .fill { background: var(--marker); }
+.metric .val { font-size: 22px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; font-variation-settings: "wdth" 110; }
+.s-results .note { margin-top: 26px; transform: rotate(-1.5deg); max-width: 520px; }
+.s-results .plain { margin-top: 18px; font-size: 16px; color: #2c3f4a; line-height: 1.55; max-width: 560px; }
+
+/* ---------- 9 feature maps ---------- */
+.s-maps { display: grid; grid-template-columns: 250px 1fr; gap: 34px; margin-top: 22px; }
+.toggle { display: inline-flex; border: 1.5px solid var(--film); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+.toggle button { border: 0; background: transparent; padding: 7px 14px; font-weight: 650; font-size: 15px; }
+.toggle button[aria-pressed="true"] { background: var(--film); color: var(--bone); }
+.maps-grid { display: grid; gap: 10px; }
+.maps-row { display: grid; grid-template-columns: 160px repeat(6, 1fr); gap: 8px; align-items: center; }
+.maps-row .rl { font-size: 13.5px; line-height: 1.3; }
+.maps-row .rl b { display: block; font-size: 14.5px; font-weight: 700; color: #fff; }
+.maps-row img { width: 100%; aspect-ratio: 1; display: block; border-radius: 2px; image-rendering: pixelated; opacity: 0; transform: scale(.9); transition: opacity .35s, transform .35s; }
+.maps-row img.in { opacity: 1; transform: none; }
+.maps-film { padding: 16px; }
+.s-maps .pred { margin-top: 14px; font-size: 15px; line-height: 1.5; }
+
+/* ---------- 10 save ---------- */
+.s-save { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 26px; }
+pre, code { font-family: "Cascadia Code", Consolas, "Courier New", monospace; }
+pre { font-size: 14px; line-height: 1.55; color: var(--bone); white-space: pre; overflow: hidden; }
+pre .k { color: #f0a37d; } pre .c { color: #7f98a4; } pre .s { color: #b6d7a8; }
+.flowline { display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 15px; }
+.flowline .chip { background: #fff; padding: 9px 12px; border-radius: 4px; box-shadow: 0 3px 10px rgba(20,34,43,.1); font-weight: 650; }
+.flowline .chip.dark { background: var(--film); color: var(--bone); }
+.flowline .ar { color: var(--muted); }
+.term { margin-top: 0; }
+.term pre { font-size: 12.5px; }
+.term .typing { overflow: hidden; }
+.term .ln { opacity: 0; }
+.term .ln.in { opacity: 1; transition: opacity .2s; }
+
+/* ---------- 11 demo ---------- */
+.s-demo { display: grid; grid-template-columns: 260px 340px 1fr; gap: 30px; margin-top: 22px; }
+.thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.thumbs button { border: 2px solid transparent; padding: 0; border-radius: 3px; overflow: hidden; background: var(--film); }
+.thumbs button img { display: block; width: 100%; }
+.thumbs button[aria-pressed="true"] { border-color: var(--marker); }
+.drop {
+  margin-top: 12px; border: 2px dashed #8ea4ae; border-radius: 4px; padding: 14px; text-align: center; font-size: 14.5px;
+  color: var(--muted); background: rgba(255,255,255,.5); cursor: pointer; display: block; transition: background .2s, border-color .2s;
+}
+.drop.over { background: #fff; border-color: var(--marker); }
+.drop b { color: var(--ink); }
+.drop input { position: absolute; opacity: 0; pointer-events: none; width: 1px; }
+.scan { position: relative; overflow: hidden; aspect-ratio: 1; border-radius: 2px; background: #000; }
+.scan canvas { width: 100%; height: 100%; display: block; image-rendering: auto; }
+.scan .beam { position: absolute; left: 0; right: 0; height: 40px; top: -40px; background: linear-gradient(transparent, rgba(158,191,207,.55), transparent); pointer-events: none; }
+.scan.busy .beam { animation: beam .9s ease-in-out; }
+@keyframes beam { to { top: 100%; } }
+.verdict { min-height: 76px; }
+.verdict .word { font-size: 50px; font-weight: 850; font-variation-settings: "wdth" 125; line-height: 1; }
+.verdict .word.pneumonia { color: var(--marker); }
+.verdict .word.normal { color: var(--steel); }
+.verdict .conf { font-size: 16px; color: var(--muted); margin-top: 6px; }
+.probs { display: grid; gap: 10px; margin-top: 18px; }
+.prob { display: grid; grid-template-columns: 96px 1fr 62px; gap: 10px; align-items: center; font-size: 15px; }
+.prob .track { height: 20px; background: rgba(255,255,255,.65); border-radius: 3px; overflow: hidden; }
+.prob .fill { height: 100%; width: 0; transition: width .7s cubic-bezier(.3,.8,.2,1); background: var(--steel); }
+.prob.p .fill { background: var(--marker); }
+.prob .v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.check { margin-top: 14px; font-size: 14px; color: var(--muted); line-height: 1.5; min-height: 42px; }
+.live-maps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.live-maps canvas { width: 100%; aspect-ratio: 1; border-radius: 2px; background: var(--film); display: block; }
+.live-cap { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.disclaimer { margin-top: 16px; font-size: 18px; }
+
+/* ---------- 12 wrap ---------- */
+.s-wrap { display: grid; grid-template-columns: 1fr 1fr 360px; gap: 40px; margin-top: 30px; }
+.s-wrap h3 { font-size: 21px; font-weight: 780; font-variation-settings: "wdth" 112; margin-bottom: 10px; }
+.s-wrap ul { list-style: none; display: grid; gap: 12px; }
+.s-wrap li { font-size: 16px; line-height: 1.45; padding-left: 20px; position: relative; color: #2c3f4a; }
+.s-wrap li::before { content: ""; position: absolute; left: 0; top: 9px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--marker); }
+.s-wrap pre { font-size: 13px; }
+.thanks { position: absolute; right: 70px; bottom: 34px; font-size: 54px; transform: rotate(-5deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001s !important; animation-delay: 0s !important; transition-duration: .001s !important; animation-iteration-count: 1 !important; }
+  .aug-frame img { animation: none; }
+  .pulse { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="viewport">
+<main class="stage" id="stage" aria-live="polite">
+
+<!-- 1 -->
+<section class="slide" data-tasks="Choose" aria-label="Title">
+  <div class="s-title">
+    <div>
+      <h1><span>Reading chest</span><span>X-rays with</span><span>a small CNN</span></h1>
+      <p class="lede">We trained a convolutional neural network from scratch, on an ordinary laptop CPU, to sort a chest X-ray into <strong>normal</strong> or <strong>pneumonia</strong>.</p>
+      <div class="meta">
+        <div>Computer Vision, application of CNN</div>
+        <div>Presented on <b>Tuesday, 17 November 2026</b></div>
+        <div style="margin-top:10px">Group: <span class="names" contenteditable="true" spellcheck="false">add your names here</span></div>
+      </div>
+    </div>
+    <div class="film clip xray-wrap" style="--tape:4deg">
+      <div style="position:relative">
+        <img id="titleXray" alt="Chest X-ray from the test set labelled pneumonia">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path class="circle" d="M20 52 C 14 64, 18 82, 30 86 C 42 90, 48 78, 46 64 C 44 52, 34 44, 24 48 C 20 50, 18 54, 21 57" />
+        </svg>
+        <span class="lead">R</span>
+      </div>
+      <div class="hand q">cloudy patch?<br>can a CNN tell?</div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide" data-tasks="Choose" aria-label="The problem">
+  <h2>The problem we picked</h2>
+  <div class="s-problem">
+    <div class="pair">
+      <figure class="clip" style="--i:0; --tilt:-1.5deg">
+        <div class="film"><img data-gallery="normal" alt="Normal chest X-ray"></div>
+        <figcaption class="hand ink">normal: lungs look dark,<br>air lets X-rays through</figcaption>
+      </figure>
+      <figure class="clip" style="--i:1; --tilt:1.5deg">
+        <div class="film" style="--tape:3deg"><img data-gallery="pneumonia" alt="Chest X-ray with pneumonia"></div>
+        <figcaption class="hand">pneumonia: white, cloudy<br>areas inside the lungs</figcaption>
+      </figure>
+    </div>
+    <div class="reasons">
+      <div>
+        <h3>The task</h3>
+        <p>Look at one chest X-ray and answer: normal or pneumonia. Doctors read thousands of these, and a second opinion that never gets tired is useful.</p>
+      </div>
+      <div>
+        <h3>Why a CNN fits</h3>
+        <p>Pneumonia shows up as <span class="hl">local patterns</span>: hazy white patches. Convolution filters learn such patterns straight from the pixels, and pooling makes them hold up when the patient stands a bit to the left. Nobody has to hand-design features.</p>
+      </div>
+      <div>
+        <h3>Why we care about recall</h3>
+        <p>Sending home a sick patient is far worse than a false alarm. So next to accuracy we report <span class="hl">recall for each class</span>: how many sick patients the model actually finds.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide" data-tasks="Train" aria-label="Dataset">
+  <h2>12,024 X-rays, half of them sick</h2>
+  <div class="s-data">
+    <div>
+      <p class="lede" style="margin-top:6px">Adult chest X-rays from the <strong>RSNA Pneumonia Detection Challenge</strong>, labelled by radiologists. We take them from the COVID-19 Radiography Database on Kaggle (299×299 PNG) and shrink them to 128×128.</p>
+      <div class="splitbar" id="splitbar" style="margin-top:22px"></div>
+      <div class="legend"><span><i style="background:var(--steel-lt)"></i>normal</span><span><i style="background:var(--steel)"></i>pneumonia</span><span>split 70 / 15 / 15, stratified, fixed seed</span></div>
+      <div class="facts">
+        <p><strong>Pneumonia:</strong> all 6,012 <em>Lung Opacity</em> images.</p>
+        <p><strong>Normal:</strong> 6,012 images drawn with a fixed seed from the 8,851 RSNA normals, so the classes are exactly balanced.</p>
+      </div>
+    </div>
+    <div>
+      <div class="gallery" id="gallery"></div>
+      <p class="hand note">we only use RSNA images. If the two classes came from different hospitals, the CNN could learn to spot the hospital instead of the disease!</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide" data-tasks="Train" aria-label="Preprocessing">
+  <h2>Preprocessing: every image gets the same treatment</h2>
+  <div class="s-prep">
+    <div>
+      <ol class="steps">
+        <li><div><h3>Grayscale, crop, resize</h3><p>Convert to one gray channel, cut the centre square and resize to 128×128 pixels. New images in <code>predict.py</code> go through exactly the same function.</p></div></li>
+        <li><div><h3>Scale to 0–1</h3><p>Pixel values 0–255 are divided by 255, which keeps the numbers small for training.</p></div></li>
+        <li><div><h3>Augment, training images only</h3><p>Random rotation up to ±10°, shift up to ±5%, zoom up to ±5%. Every epoch the model sees a slightly different version, which fights overfitting.</p></div></li>
+        <li><div><h3>No mirror flips</h3><p>Left and right matter in a chest: the heart sits on the left. A flipped X-ray is not a realistic patient.</p></div></li>
+      </ol>
+      <div class="balance">Both classes are 50/50, so plain cross-entropy loss is enough, and accuracy means something: a lazy model that always says “pneumonia” would only get 50%.</div>
+    </div>
+    <div class="augbox">
+      <div class="clip" style="--i:0; --tilt:-1deg">
+        <div class="film"><div class="aug-frame"><img id="augImg" alt="Training X-ray shown with random rotation, shift and zoom"></div></div>
+        <p class="hand cap">augmented, changes every second</p>
+      </div>
+      <div class="clip" style="--i:1; --tilt:1.5deg">
+        <div class="film flip" style="--tape:2deg"><img id="flipImg" alt="Mirrored chest X-ray, crossed out">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line x1="8" y1="8" x2="92" y2="92"/><line x1="92" y1="8" x2="8" y2="92"/></svg>
+        </div>
+        <p class="hand cap">mirrored: heart on the wrong side</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide" data-tasks="Explain" aria-label="Structure diagram">
+  <h2>Structure diagram: how the parts connect</h2>
+  <div class="pipeline" id="pipeline" role="group" aria-label="Project stages"></div>
+  <div class="arch-wrap">
+    <div>
+      <div class="arch film notape" id="arch" role="group" aria-label="CNN layers">
+        <div class="pulse"></div>
+      </div>
+      <p class="hand arch-hint">click any block to see what it does. Slab height is the image size, thickness is the number of filters.</p>
+    </div>
+    <div class="info" id="info"></div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-tasks="Understand" aria-label="Model layers">
+  <h2 id="paramTitle">The model, layer by layer</h2>
+  <div class="s-model">
+    <table id="layerTable">
+      <thead><tr><th>Part</th><th>What is inside</th><th>Output shape</th><th class="r">Parameters</th></tr></thead>
+      <tbody></tbody>
+      <tfoot></tfoot>
+    </table>
+    <div>
+      <p style="color:#2c3f4a">Where the trainable weights are:</p>
+      <div class="pbars" id="pbars"></div>
+      <p class="hand note" id="paramNote"></p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-tasks="Train Understand Save" aria-label="Training">
+  <h2>Training: 15 epochs on a laptop CPU</h2>
+  <div class="s-train">
+    <div>
+      <div class="recipe">
+        <div><span>Optimizer</span><span>Adam</span></div>
+        <div><span>Learning rate</span><span>0.001</span></div>
+        <div><span>Batch size</span><span>64</span></div>
+        <div><span>Loss</span><span>Cross-entropy</span></div>
+        <div><span>Epochs</span><span>15</span></div>
+        <div><span>Training images</span><span>8,416</span></div>
+      </div>
+      <p class="recipe-note">After every epoch we check the validation set. Whenever validation accuracy beats its best so far, the weights are saved to <code>outputs/model.pt</code>.</p>
+    </div>
+    <div>
+      <div class="charts">
+        <div class="film clip chart" style="--i:0; --tilt:-.8deg"><h3>Loss</h3><svg id="lossChart" viewBox="0 0 360 230" role="img" aria-label="Training and validation loss per epoch"></svg></div>
+        <div class="film clip chart" style="--i:1; --tilt:.8deg; --tape:3deg"><h3>Accuracy</h3><svg id="accChart" viewBox="0 0 360 230" role="img" aria-label="Training and validation accuracy per epoch"></svg></div>
+      </div>
+      <p class="chart-note" id="curveNote"></p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-tasks="Test" aria-label="Test results">
+  <h2>Test: 1,804 X-rays the model never saw</h2>
+  <div class="s-results">
+    <div>
+      <div class="cm" id="cm"></div>
+    </div>
+    <div>
+      <div class="metric-list" id="metrics"></div>
+      <p class="plain" id="resultPlain"></p>
+      <p class="hand note" id="resultNote"></p>
+    </div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-tasks="Understand" aria-label="Feature maps">
+  <h2>What each conv block sees</h2>
+  <div class="s-maps">
+    <div>
+      <div class="toggle" role="group" aria-label="Choose example">
+        <button aria-pressed="true" data-cls="normal">Normal</button>
+        <button aria-pressed="false" data-cls="pneumonia">Pneumonia</button>
+      </div>
+      <div class="film"><img id="mapInput" alt="Input X-ray for the feature maps"></div>
+      <p class="pred" id="mapPred"></p>
+    </div>
+    <div class="film notape maps-film"><div class="maps-grid" id="mapsGrid"></div></div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-tasks="Save Predict" aria-label="Save and reload">
+  <h2>Save once, reload anywhere</h2>
+  <div class="s-save">
+    <div>
+      <div class="film clip" style="--i:0; --tilt:-.6deg">
+<pre><span class="c"># model.py</span>
+<span class="k">def</span> save_model(model):
+    torch.save(model.state_dict(), MODEL_PATH)
+
+<span class="k">def</span> load_model():
+    model = PneumoniaCNN()
+    model.load_state_dict(torch.load(MODEL_PATH,
+                          map_location=<span class="s">"cpu"</span>, weights_only=<span class="k">True</span>))
+    <span class="k">return</span> model.eval()</pre>
+      </div>
+      <div class="flowline">
+        <span class="chip">train.py</span><span class="ar">saves</span>
+        <span class="chip dark" id="ptChip">model.pt</span><span class="ar">loaded by</span>
+        <span class="chip">predict.py</span><span class="chip">this page</span>
+      </div>
+      <p style="margin-top:18px; color:#2c3f4a; font-size:16px">Only the learned weights are stored, not the code. Reloading them into a fresh <code>PneumoniaCNN</code> is exactly what happens when we use the model later. The live demo on the next slide runs those same weights in the browser.</p>
+    </div>
+    <div class="film clip term" style="--i:1; --tilt:.6deg; --tape:2deg">
+      <pre id="termOut"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-tasks="Predict" aria-label="Live demo">
+  <h2>Live demo: classify a new X-ray</h2>
+  <div class="s-demo">
+    <div>
+      <div class="thumbs" id="thumbs" role="group" aria-label="Sample X-rays"></div>
+      <label class="drop" id="drop">
+        <input type="file" id="fileIn" accept="image/png,image/jpeg">
+        <b>Use your own image</b><br>drop a PNG or JPG here, or click
+      </label>
+    </div>
+    <div>
+      <div class="film"><div class="scan" id="scan"><canvas id="demoCanvas" width="128" height="128" aria-label="Preprocessed 128 by 128 input"></canvas><div class="beam"></div></div></div>
+      <p class="hand disclaimer">a class project, not a medical tool</p>
+    </div>
+    <div>
+      <div class="verdict" id="verdict"><div class="conf">Pick a sample X-ray on the left.</div></div>
+      <div class="probs">
+        <div class="prob n"><span>normal</span><div class="track"><div class="fill" id="pn"></div></div><span class="v" id="vn">–</span></div>
+        <div class="prob p"><span>pneumonia</span><div class="track"><div class="fill" id="pp"></div></div><span class="v" id="vp">–</span></div>
+      </div>
+      <p class="check" id="check"></p>
+      <div class="live-maps" id="liveMaps"></div>
+      <p class="live-cap">first conv block, four of its 16 filters, computed just now</p>
+    </div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-tasks="Choose Train Test Understand Save Predict Explain" aria-label="Wrap-up">
+  <h2>What we take away</h2>
+  <div class="s-wrap">
+    <div>
+      <h3>What worked</h3>
+      <ul id="worked"></ul>
+    </div>
+    <div>
+      <h3>Limits, honestly</h3>
+      <ul>
+        <li>128×128 pixels throws away fine detail a radiologist would use.</li>
+        <li>All images come from one dataset. A different hospital or scanner could lower the score.</li>
+        <li>“Lung opacity” is a sign of pneumonia, not a full diagnosis.</li>
+        <li>Next steps: bigger images, more sources, heat maps that show where the model looks.</li>
+      </ul>
+    </div>
+    <div class="film" style="--tilt:1deg">
+<pre><span class="c"># run it yourself</span>
+pip install -r requirements.txt
+python data.py
+python train.py
+python evaluate.py
+python visualize.py
+python predict.py samples/*.png</pre>
+    </div>
+  </div>
+  <p class="hand thanks">questions?</p>
+</section>
+
+  <div class="progress" id="progress"></div>
+  <nav class="bar" aria-label="Slide navigation">
+    <div class="tasks" id="tasks"><span class="lbl">Tasks on this slide</span></div>
+    <button class="nav" id="prev" aria-label="Previous slide">‹</button>
+    <span class="count" id="count"></span>
+    <button class="nav" id="next" aria-label="Next slide">›</button>
+  </nav>
+</main>
+</div>
+
+<script src="assets/results.js"></script>
+<script src="assets/weights.js"></script>
+<script src="cnn.js"></script>
+<script>
+(() => {
+const R = window.RESULTS;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const pct = (v, d = 1) => (v * 100).toFixed(d) + "%";
+const fmt = n => n.toLocaleString("en-US");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- stage scaling + navigation ---------- */
+const stage = $("#stage");
+function fit() {
+  const s = Math.min(innerWidth / 1300, innerHeight / 740);
+  stage.style.transform = `scale(${s})`;
+}
+addEventListener("resize", fit); fit();
+
+const slides = $$(".slide");
+const TASKS = ["Choose", "Train", "Test", "Understand", "Save", "Predict", "Explain"];
+TASKS.forEach(t => { const s = document.createElement("span"); s.className = "task"; s.textContent = t; s.dataset.t = t; $("#tasks").append(s); });
+const enterHooks = {};
+let cur = -1;
+function go(i) {
+  i = Math.max(0, Math.min(slides.length - 1, i));
+  if (i === cur) return;
+  if (cur >= 0) slides[cur].classList.remove("on");
+  cur = i;
+  const sl = slides[i];
+  sl.classList.add("on");
+  if (!reduced) { stage.classList.remove("flicker"); void stage.offsetWidth; stage.classList.add("flicker"); }
+  const on = sl.dataset.tasks.split(" ");
+  $$(".task").forEach(t => t.classList.toggle("lit", on.includes(t.dataset.t)));
+  $("#count").textContent = `${i + 1} / ${slides.length}`;
+  $("#progress").style.width = `${(i + 1) / slides.length * 100}%`;
+  history.replaceState(null, "", "#" + (i + 1));
+  (enterHooks[i] || []).forEach(f => f());
+}
+const onEnter = (i, f) => (enterHooks[i] = enterHooks[i] || []).push(f);
+$("#prev").onclick = () => go(cur - 1);
+$("#next").onclick = () => go(cur + 1);
+addEventListener("keydown", e => {
+  if (e.target.isContentEditable || e.target.tagName === "INPUT") return;
+  if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+  if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+  if (e.key === "Home") go(0);
+  if (e.key === "End") go(slides.length - 1);
+  if (e.key === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+});
+let tx = null;
+addEventListener("touchstart", e => tx = e.touches[0].clientX, { passive: true });
+addEventListener("touchend", e => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) go(cur + (d < 0 ? 1 : -1)); tx = null; });
+
+/* ---------- images ---------- */
+const sampleP = R.samples.find(s => s.truth === "pneumonia");
+$("#titleXray").src = sampleP.file;
+const gN = R.gallery.filter(g => g.label === "normal"), gP = R.gallery.filter(g => g.label === "pneumonia");
+$('[data-gallery="normal"]').src = gN[0].file;
+$('[data-gallery="pneumonia"]').src = gP[0].file;
+$("#augImg").src = gN[1].file;
+$("#flipImg").src = gN[1].file;
+const gal = $("#gallery");
+[["normal", gN], ["pneumonia", gP]].forEach(([lbl, list], r) => {
+  list.forEach((g, k) => {
+    const d = document.createElement("div");
+    d.className = "film clip";
+    d.style.cssText = `--i:${r * 4 + k}; --tilt:${((k * 7 + r * 3) % 5 - 2) * .6}deg; --tape:${(k % 3 - 1) * 4}deg`;
+    d.innerHTML = `<img src="${g.file}" alt="${lbl} X-ray">`;
+    gal.append(d);
+  });
+  const l = document.createElement("p");
+  l.className = "hand row-lbl" + (lbl === "normal" ? " ink" : "");
+  l.textContent = lbl === "normal" ? "normal (training set)" : "pneumonia (training set)";
+  gal.append(l);
+});
+
+/* ---------- dataset split bar ---------- */
+const total = Object.values(R.counts).reduce((a, c) => a + c[0] + c[1], 0);
+const names = { train: "Train", val: "Validation", test: "Test" };
+const bar = $("#splitbar");
+Object.entries(R.counts).forEach(([k, c]) => {
+  const s = document.createElement("div");
+  s.className = "seg"; s.style.flex = `${c[0] + c[1]} 1 0`;
+  s.innerHTML = `<label>${names[k]}<small>${fmt(c[0] + c[1])}</small></label><div class="bars"><div class="n"></div><div class="p"></div></div>`;
+  bar.append(s);
+});
+onEnter(2, () => {
+  $$(".seg").forEach(s => s.classList.remove("in"));
+  setTimeout(() => $$(".seg").forEach((s, i) => setTimeout(() => s.classList.add("in"), i * 220)), 250);
+});
+
+/* ---------- structure diagram ---------- */
+const L = R.layers;
+const params = idx => idx.reduce((a, i) => a + L[i].params, 0);
+// leaf order: [Conv,BN,ReLU,Pool] x4 (0..15), Flatten 16, Dropout 17, Linear 18, ReLU 19, Dropout 20, Linear 21
+const comps = [{ key: "input", name: "Input", shape: [1, 128, 128], cls: "input", p: 0,
+  text: "One grayscale chest X-ray, 128×128 pixels, values scaled to 0–1. This is all the network ever sees." }];
+const convText = [
+  "16 filters of size 3×3 slide over the image. They react to simple things: edges, rib outlines, the border of the lungs.",
+  "32 filters combine those edges into shapes, such as the curve of the diaphragm or the outline of the heart.",
+  "64 filters respond to larger textures, for example hazy or cloudy regions inside a lung.",
+  "128 filters, each covering a large part of the chest. These patterns are abstract, they no longer look like anything to us."];
+for (let b = 0; b < 4; b++) {
+  comps.push({ key: "conv" + b, name: "Conv " + L[b * 4].shape[0], shape: L[b * 4].shape, cls: "conv", p: params([b * 4, b * 4 + 1]),
+    text: convText[b] + " Each conv is followed by BatchNorm, which keeps the values in a steady range, and ReLU, which keeps only positive responses." });
+  comps.push({ key: "pool" + b, name: "Pool", shape: L[b * 4 + 3].shape, cls: "pool", p: 0,
+    text: `Max pooling keeps the strongest value in every 2×2 window, so width and height halve to ${L[b * 4 + 3].shape[1]}×${L[b * 4 + 3].shape[2]}. A pattern still counts if it moves by a pixel or two. No weights to learn.` });
+}
+comps.push({ key: "flat", name: "Flatten", shape: L[16].shape, cls: "vec", p: 0,
+  text: `The 128 small maps of 8×8 are laid out as one long list of ${fmt(L[16].shape[0])} numbers. During training, Dropout then switches off half of them at random, so the model can't lean on a few of them.` });
+comps.push({ key: "dense1", name: "Dense " + L[18].shape[0], shape: L[18].shape, cls: "vec", p: L[18].params,
+  text: `128 neurons, each connected to all ${fmt(L[16].shape[0])} features, followed by ReLU and another Dropout. This one layer holds most of the model's weights.` });
+comps.push({ key: "dense2", name: "Dense " + L[21].shape[0], shape: L[21].shape, cls: "vec", p: L[21].params,
+  text: "Two output neurons: one score for normal, one for pneumonia." });
+comps.push({ key: "soft", name: "Softmax", shape: L[21].shape, cls: "out", p: 0,
+  text: "Turns the two scores into probabilities that add up to 100%. In training it lives inside the cross-entropy loss; at prediction time we apply it ourselves." });
+
+function slabSize(c) {
+  if (c.shape.length === 3) {
+    const h = 34 + 150 * Math.sqrt(c.shape[1] / 128);
+    const w = c.cls === "input" ? h : 8 + 4 * Math.log2(c.shape[0]);
+    return [w, h];
+  }
+  return [12, 24 + 36 * Math.log10(c.shape[0])];
+}
+const arch = $("#arch"), info = $("#info");
+comps.forEach(c => {
+  const b = document.createElement("button");
+  b.className = "comp"; b.setAttribute("aria-pressed", "false");
+  const [w, h] = slabSize(c);
+  const style = `width:${w}px;height:${h}px;` + (c.cls === "input" ? `background-image:url(${gP[1].file})` : "");
+  b.innerHTML = `<div class="slab ${c.cls}" style="${style}"></div><span class="name">${c.name}</span><span class="shape">${c.shape.join("×")}</span>`;
+  b.onclick = () => selectComp(c, b);
+  arch.append(b);
+  c.el = b;
+});
+const stages = [
+  { n: 1, name: "Dataset", sub: "data.py", text: "Downloads the 816 MB Kaggle archive, keeps only RSNA images, balances the two classes and splits them 70/15/15 into train, validation and test.", show: ["input"] },
+  { n: 2, name: "Preprocess", sub: "data.py", text: "Grayscale, centre crop, resize to 128×128, scale pixels to 0–1. Random rotation, shift and zoom on training images only.", show: ["input"] },
+  { n: 3, name: "CNN model", sub: "model.py", text: "Four conv blocks find patterns and shrink the image from 128 to 8 pixels wide. Then a small classifier turns the patterns into two probabilities.", show: comps.slice(1).map(c => c.key) },
+  { n: 4, name: "Train & test", sub: "train.py, evaluate.py", text: "Adam, 15 epochs, best weights kept by validation accuracy. Then accuracy, precision, recall and a confusion matrix on the untouched test set.", show: ["soft"] },
+  { n: 5, name: "Save & predict", sub: "model.py, predict.py", text: "The weights go to outputs/model.pt. predict.py reloads them and classifies any new PNG or JPG chest X-ray.", show: ["soft"] }];
+const pipe = $("#pipeline");
+stages.forEach(s => {
+  const b = document.createElement("button");
+  b.className = "stage-btn"; b.dataset.n = s.n; b.setAttribute("aria-pressed", "false");
+  b.innerHTML = `${s.name}<small>${s.sub}</small>`;
+  b.onclick = () => selectStage(s, b);
+  pipe.append(b); s.el = b;
+});
+function clearSel() { $$(".comp, .stage-btn").forEach(e => e.setAttribute("aria-pressed", "false")); }
+function showInfo(title, sub, text) {
+  info.classList.remove("swap"); void info.offsetWidth; info.classList.add("swap");
+  info.innerHTML = `<h3>${title}</h3><div class="sub">${sub}</div><p>${text}</p>`;
+}
+function selectComp(c, b) {
+  clearSel(); b.setAttribute("aria-pressed", "true"); stages[2].el.setAttribute("aria-pressed", "true");
+  showInfo(c.name, `output ${c.shape.join(" × ")}, ${fmt(c.p)} parameters`, c.text);
+}
+function selectStage(s, b) {
+  clearSel(); b.setAttribute("aria-pressed", "true");
+  s.show.forEach(k => comps.find(c => c.key === k).el.setAttribute("aria-pressed", "true"));
+  showInfo(`${s.n}. ${s.name}`, s.sub, s.text);
+}
+selectStage(stages[2], stages[2].el);
+
+/* ---------- model table ---------- */
+const groups = [];
+for (let b = 0; b < 4; b++) groups.push({ part: `Conv block ${b + 1}`, inside: "Conv 3×3, BatchNorm, ReLU, MaxPool", shape: L[b * 4 + 3].shape, p: params([b * 4, b * 4 + 1, b * 4 + 2, b * 4 + 3]) });
+groups.push({ part: "Flatten", inside: "+ Dropout 0.5", shape: L[16].shape, p: 0 });
+groups.push({ part: "Dense 1", inside: "Linear, ReLU, Dropout 0.5", shape: L[18].shape, p: params([18, 19, 20]) });
+groups.push({ part: "Dense 2", inside: "Linear, softmax at prediction", shape: L[21].shape, p: L[21].params });
+$("#layerTable tbody").innerHTML = groups.map(g => `<tr><td><strong>${g.part}</strong></td><td><small>${g.inside}</small></td><td>${g.shape.join(" × ")}</td><td class="r">${fmt(g.p)}</td></tr>`).join("");
+$("#layerTable tfoot").innerHTML = `<tr><td colspan="3">Total</td><td class="r">${fmt(R.total_params)}</td></tr>`;
+const withP = groups.filter(g => g.p > 0);
+const maxP = Math.max(...withP.map(g => g.p));
+$("#pbars").innerHTML = withP.map(g => `<div class="pbar${g.p === maxP ? " big" : ""}"><span>${g.part}</span><div class="track"><div class="fill" data-w="${g.p / maxP * 100}"></div></div><span class="v">${g.p / R.total_params < .001 ? "&lt;0.1%" : pct(g.p / R.total_params)}</span></div>`).join("");
+$("#paramTitle").textContent = `${(R.total_params / 1e6).toFixed(2)} million weights, by layer`;
+const convShare = groups.slice(0, 4).reduce((a, g) => a + g.p, 0) / R.total_params;
+$("#paramNote").textContent = `surprise: the four conv blocks, which do all the “seeing”, hold only ${pct(convShare)} of the weights. The first dense layer holds ${pct(maxP / R.total_params, 0)}.`;
+onEnter(5, () => { $$("#pbars .fill").forEach(f => f.style.width = "0"); setTimeout(() => $$("#pbars .fill").forEach((f, i) => setTimeout(() => f.style.width = f.dataset.w + "%", i * 120)), 300); });
+
+/* ---------- learning curves ---------- */
+const H = R.history, E = H.train_loss.length;
+const bestEpoch = H.val_acc.indexOf(Math.max(...H.val_acc));
+function chart(svg, keys, fmtY, best) {
+  const W = 360, Ht = 230, m = { l: 40, r: 46, t: 10, b: 26 };
+  const vals = keys.flatMap(k => H[k]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * .12; lo -= pad; hi += pad;
+  const x = i => m.l + i / (E - 1) * (W - m.l - m.r);
+  const y = v => m.t + (1 - (v - lo) / (hi - lo)) * (Ht - m.t - m.b);
+  let g = '<g class="grid">';
+  const ticks = 4;
+  for (let t = 0; t <= ticks; t++) { const v = lo + (hi - lo) * t / ticks; g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/>`; }
+  g += '</g><g class="ax">';
+  for (let t = 0; t <= ticks; t++) { const v = lo + (hi - lo) * t / ticks; g += `<text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${fmtY(v)}</text>`; }
+  [1, 5, 10, 15].filter(e => e <= E).forEach(e => g += `<text x="${x(e - 1)}" y="${Ht - 6}" text-anchor="middle">${e}</text>`);
+  g += `<text x="${W - m.r}" y="${Ht - 6}" text-anchor="start" dx="8">epoch</text></g>`;
+  const colors = { train: "var(--steel-lt)", val: "#f0a37d" };
+  keys.forEach(k => {
+    const split = k.split("_")[0];
+    const d = H[k].map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    g += `<path class="line ${split}" d="${d}"/>`;
+    const last = H[k][E - 1];
+    g += `<text class="lbl" x="${x(E - 1) + 6}" y="${y(last) + 4}" fill="${colors[split]}">${split === "val" ? "val" : "train"}</text>`;
+  });
+  if (best) g += `<ellipse class="best" cx="${x(bestEpoch)}" cy="${y(H.val_acc[bestEpoch])}" rx="11" ry="9"/>`;
+  svg.innerHTML = g;
+  return svg;
+}
+chart($("#lossChart"), ["train_loss", "val_loss"], v => v.toFixed(2));
+chart($("#accChart"), ["train_acc", "val_acc"], v => Math.round(v * 100) + "%", true);
+const gap = H.train_acc[E - 1] - H.val_acc[E - 1];
+$("#curveNote").innerHTML = `Best validation accuracy: <strong>${pct(H.val_acc[bestEpoch])}</strong> at epoch ${bestEpoch + 1} (circled), so those weights were saved. ` +
+  (Math.abs(gap) < 0.03 ? "Training and validation stay close together, so the model generalises instead of memorising." :
+   gap > 0 ? `Training ends ${pct(gap)} above validation: a small sign of overfitting, which is why we keep the best epoch rather than the last.` :
+   "Validation stays at or above training accuracy, partly because Dropout and augmentation only act during training.");
+function animateLines() {
+  $$("#lossChart .line, #accChart .line").forEach((p, i) => {
+    const len = p.getTotalLength();
+    p.style.transition = "none"; p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+    void p.getBoundingClientRect();
+    p.style.transition = `stroke-dashoffset 1.6s ease ${0.5 + (i % 2) * .25}s`; p.style.strokeDashoffset = 0;
+  });
+}
+onEnter(6, animateLines);
+
+/* ---------- confusion matrix + metrics ---------- */
+const T = R.test, M = T.matrix;
+const cm = $("#cm");
+const maxM = Math.max(...M.flat());
+const labelsCm = [["correctly cleared", "false alarm"], ["missed pneumonia", "correctly found"]];
+cm.innerHTML = `<div></div><div class="h">predicted normal</div><div class="h">predicted pneumonia</div>` +
+  [0, 1].map(r => `<div class="v">${r ? "really<br>pneumonia" : "really<br>normal"}</div>` + [0, 1].map(c => {
+    const a = .25 + .75 * M[r][c] / maxM;
+    const bg = r === c ? `rgba(20,34,43,${a})` : `rgba(204,50,38,${.35 + .65 * M[r][c] / maxM})`;
+    const col = a < .5 && r === c ? "var(--ink)" : "var(--bone)";
+    return `<div class="cell" style="background:${bg};color:${col}"><b data-n="${M[r][c]}">0</b><span>${labelsCm[r][c]}</span></div>`;
+  }).join("")).join("");
+const metricsDef = [
+  ["Accuracy", "all test images", T.accuracy, false],
+  ["Recall, pneumonia", "sick patients found", T.recall[1], true],
+  ["Recall, normal", "healthy patients cleared", T.recall[0], false],
+  ["Precision, pneumonia", "alarms that were right", T.precision[1], false],
+  ["Precision, normal", "all-clears that were right", T.precision[0], false]];
+$("#metrics").innerHTML = metricsDef.map(([n, s, v, key]) => `<div class="metric${key ? " key" : ""}"><div class="name">${n}<small>${s}</small></div><div class="track"><div class="fill" data-w="${v * 100}"></div></div><div class="val">${pct(v)}</div></div>`).join("");
+const missed = M[1][0], alarms = M[0][1];
+$("#resultPlain").innerHTML = `Out of ${fmt(M[1][0] + M[1][1])} sick patients the model found <strong>${fmt(M[1][1])}</strong> and missed ${fmt(missed)}. Out of ${fmt(M[0][0] + M[0][1])} healthy ones it raised ${fmt(alarms)} false alarms.`;
+$("#resultNote").textContent = missed < alarms
+  ? "good sign: it errs on the side of caution, more false alarms than missed patients"
+  : `the ${fmt(missed)} missed patients are the number we would most like to bring down`;
+onEnter(7, () => {
+  $$("#metrics .fill").forEach(f => f.style.width = "0");
+  setTimeout(() => $$("#metrics .fill").forEach((f, i) => setTimeout(() => f.style.width = f.dataset.w + "%", i * 130)), 300);
+  $$("#cm b").forEach(b => {
+    const n = +b.dataset.n, t0 = performance.now(), dur = reduced ? 1 : 1100;
+    const step = t => { const k = Math.min(1, (t - t0) / dur); b.textContent = fmt(Math.round(n * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+});
+
+/* ---------- feature maps ---------- */
+const mapDesc = ["edges and ribs", "shapes and outlines", "textures", "abstract patterns"];
+function showMaps(cls) {
+  const F = R.fmaps[cls];
+  $("#mapInput").src = F.input;
+  const p = F.probs, best = p[1] > p[0] ? 1 : 0;
+  $("#mapPred").innerHTML = `True label: <strong>${cls}</strong><br>Model says: <strong>${R.classes[best]}</strong> (${pct(p[best])})`;
+  $("#mapsGrid").innerHTML = F.layers.map((ly, li) => `<div class="maps-row"><div class="rl"><b>Block ${li + 1}</b>${ly.shape[1]}×${ly.shape[2]}, ${mapDesc[li]}</div>${ly.files.map(f => `<img src="${f}" alt="">`).join("")}</div>`).join("");
+  $$("#mapsGrid img").forEach((im, i) => setTimeout(() => im.classList.add("in"), 80 + (i % 6) * 40 + Math.floor(i / 6) * 160));
+  $$(".toggle button").forEach(b => b.setAttribute("aria-pressed", b.dataset.cls === cls));
+}
+$$(".toggle button").forEach(b => b.onclick = () => showMaps(b.dataset.cls));
+onEnter(8, () => showMaps($('.toggle [aria-pressed="true"]').dataset.cls));
+
+/* ---------- save: terminal output ---------- */
+$("#ptChip").textContent = `model.pt, ${R.model_mb} MB`;
+const term = ["<span class='c'>$ python predict.py samples/*.png</span>", ...R.samples.map(s => {
+  const b = s.probs[1] > s.probs[0] ? 1 : 0;
+  return `${s.name}: <span class="${b ? "k" : "s"}">${R.classes[b].toUpperCase()}</span> (${pct(s.probs[b])})`;
+})];
+$("#termOut").innerHTML = term.map(l => `<div class="ln">${l}</div>`).join("");
+onEnter(9, () => { const ls = $$("#termOut .ln"); ls.forEach(l => l.classList.remove("in")); ls.forEach((l, i) => setTimeout(() => l.classList.add("in"), 500 + i * 160)); });
+
+/* ---------- live demo ---------- */
+const P = CNN.decode(window.WEIGHTS);
+const cv = $("#demoCanvas"), ctx = cv.getContext("2d", { willReadFrequently: true });
+const liveMaps = $("#liveMaps");
+for (let i = 0; i < 4; i++) { const c = document.createElement("canvas"); c.width = c.height = 128; liveMaps.append(c); }
+function runImage(src, truth, torchProbs) {
+  const img = new Image();
+  img.onload = () => {
+    const side = Math.min(img.width, img.height);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 128, 128);
+    const d = ctx.getImageData(0, 0, 128, 128).data;
+    const px = new Float32Array(128 * 128);
+    for (let i = 0; i < px.length; i++) {
+      const v = Math.round((d[i * 4] * 299 + d[i * 4 + 1] * 587 + d[i * 4 + 2] * 114) / 1000);
+      px[i] = v / 255; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v;
+    }
+    ctx.putImageData(new ImageData(d, 128, 128), 0, 0);
+    const scan = $("#scan"); scan.classList.remove("busy"); void scan.offsetWidth; scan.classList.add("busy");
+    $("#verdict").innerHTML = `<div class="conf">running the CNN…</div>`;
+    $("#pn").style.width = $("#pp").style.width = "0";
+    setTimeout(() => {
+      const t0 = performance.now();
+      const { probs, maps } = CNN.predict(P, px);
+      const ms = performance.now() - t0;
+      const b = probs[1] > probs[0] ? 1 : 0;
+      $("#verdict").innerHTML = `<div class="word ${R.classes[b]}">${R.classes[b]}</div><div class="conf">${pct(probs[b])} sure, computed in ${ms.toFixed(0)} ms</div>`;
+      $("#pn").style.width = pct(probs[0]); $("#pp").style.width = pct(probs[1]);
+      $("#vn").textContent = pct(probs[0]); $("#vp").textContent = pct(probs[1]);
+      $("#check").innerHTML = truth
+        ? `True label: <strong>${truth}</strong> ${truth === R.classes[b] ? "(correct)" : "(wrong)"}. PyTorch on the same file said ${pct(torchProbs[1])} pneumonia.`
+        : "Your own image: no label, so no right or wrong here.";
+      const m = maps[0];
+      [0, 3, 7, 12].forEach((ch, k) => {
+        const c = liveMaps.children[k].getContext("2d");
+        const plane = m.data.subarray(ch * m.H * m.W, (ch + 1) * m.H * m.W);
+        let mx = 1e-6; for (const v of plane) if (v > mx) mx = v;
+        const out = c.createImageData(128, 128);
+        for (let i = 0; i < plane.length; i++) {
+          const t = plane[i] / mx;
+          out.data[i * 4] = 20 + t * 200; out.data[i * 4 + 1] = 34 + t * 190; out.data[i * 4 + 2] = 43 + t * 180; out.data[i * 4 + 3] = 255;
+        }
+        c.putImageData(out, 0, 0);
+      });
+    }, reduced ? 0 : 650);
+  };
+  img.src = src;
+}
+const thumbs = $("#thumbs");
+R.samples.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.setAttribute("aria-pressed", "false");
+  b.setAttribute("aria-label", `Sample ${i + 1}`);
+  b.innerHTML = `<img src="${s.data}" alt="">`;
+  b.onclick = () => { $$("#thumbs button").forEach(x => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", "true"); runImage(s.data, s.truth, s.probs); };
+  thumbs.append(b);
+});
+function useFile(f) {
+  if (!f || !/image\/(png|jpe?g)/.test(f.type)) { $("#check").textContent = "That file is not a PNG or JPG. Try a chest X-ray image."; return; }
+  const r = new FileReader();
+  r.onload = () => { $$("#thumbs button").forEach(x => x.setAttribute("aria-pressed", "false")); runImage(r.result, null); };
+  r.readAsDataURL(f);
+}
+$("#fileIn").onchange = e => useFile(e.target.files[0]);
+const drop = $("#drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => useFile(e.dataTransfer.files[0]));
+let demoStarted = false;
+onEnter(10, () => { if (!demoStarted) { demoStarted = true; setTimeout(() => thumbs.children[1].click(), 700); } });
+
+/* ---------- wrap-up ---------- */
+$("#worked").innerHTML = [
+  `A ${(R.total_params / 1e6).toFixed(2)}M-parameter CNN trained from scratch in about 25 minutes on a CPU.`,
+  `${pct(T.accuracy)} accuracy and ${pct(T.recall[1])} pneumonia recall on 1,804 unseen X-rays.`,
+  "Balanced classes from one source, so the score reflects the disease, not the hospital.",
+  "The saved model reloads anywhere, even inside this web page."
+].map(t => `<li>${t}</li>`).join("");
+
+go(Math.max(0, (parseInt(location.hash.slice(1)) || 1) - 1));
+})();
+</script>
+</body>
+</html>
